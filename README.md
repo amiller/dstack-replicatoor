@@ -25,6 +25,14 @@ You can send GET/POST to the IP running this service:
 - POST /request/  {}
 - GET  /status/ gives an indication how it's going
 
+Getting the reference value for the rtmr3
+=======
+Assuming we already have the hash of the base image, we just need to provide the docker-compose as input.
+
+Providing private reference values
+===============
+The app can receive untrusted private inputs from, such as API keys, by listening.
+
 How to interact with the replicatoor from guest application
 ========
 - POST /getkey/
@@ -40,5 +48,5 @@ services:
     image: amiller/dstack-replicatoor
     volumes:
       - /var/run/tappd.sock:/var/run/tappd.sock
-      - untrustedhost:/mnt/untrustedhost
+      - untrustedhost:/var/run/untrustedhost
 ```

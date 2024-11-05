@@ -16,20 +16,33 @@ import re
 ETH_API_KEY     = os.environ['ETH_API_KEY']
 
 # Trusted values read from image
-ETH_RPC_URL     = os.environ['ETH_RPC_URL']
-CONTRACT     = os.environ['CONTRACT']
-CONTRACT     = os.environ['CHAIN_ID']
-HOST_SERVICE = trusted['HOST_SERVICE']
+ETH_RPC_URL = os.environ['ETH_RPC_URL']
+CONTRACT    = os.environ['CONTRACT']
 ETH_RPC_URL = ETH_RPC_URL + ETH_API_KEY
+
+# 
+HOST_SERVICE = trusted['HOST_SERVICE']
 CHAIN_ID    = os.environ['CHAIN_ID']
+
+# Here's all the key state
+global_state = dict(
+    myKey = None,
+    xPriv = None
+)
+
+app = Flask(__name__)
+
+def get_dstack_quote(appdata):
+    requests.post('http+unix://%2Fvar%2Frun%2Ftappd.sock/prpc/Tappd.TdxQuote?json', data=appdata)
+
 
 # To get a quote
 def get_quote(appdata):
     # Try to use the dstack tappd
-    if os.path.exists('/dev/tdx_guest'):
-        print('actually on tdx', file=sys.stderr)
-        raise NotImplemented
-    else:
+    try:
+        quote = get_dstack_quote(appdata)
+        return quote
+    except KeyboardInterrupt:
         # Fetch a dummy quote
         cmd = f"curl -sk http://ns31695324.ip-141-94-163.eu:10080/attest/{appdata} --output - | od -An -v -tx1 | tr -d ' \n'"
         return subprocess.check_output(cmd, shell=True).decode('utf-8')
@@ -62,10 +75,14 @@ def is_bootstrapped():
 # Bootstrap
 #####################
 # Called by the host if it's important to bootstrap
-            
+
+@app.route('/boostrap', methods=['POST'])
 def bootstrap():
-else:
-    print('Not bootstrapped', file=sys.stderr)
+    if not is_boostrapped():
+        print('Already bootstrapped')
+        return "Already bootstrapped", 400
+    
+    print('Attempting bootstrap', file=sys.stderr)
 
     # Generate the random key
     xPriv = os.urandom(32)
@@ -79,12 +96,7 @@ else:
     open('/mnt/host_volume/bootstrap_quote.quote','w').write(quote)
     
     # Ask the host service to post the tx, return when done
-    resp = requests.post(f"{HOST_SERVICE}/bootstrap", data=dict(
-        addr=addr,
-        quote=quote))
-    if resp.status_code != 200:
-        print(resp, file=sys.stderr)
-        raise Exception
+    return dict(addr=addr, quote=quote)
 
 
 #####################
@@ -129,16 +141,7 @@ def requestKey():
 @app.route('/receiveKey', methods=['POST'])
 def receiveKey():
     # Ask the host to get us onboarded
-    resp = requests.post(f"{HOST_SERVICE}/register", data=dict(
-        addr=myAddr,
-        sig=sig.hex(),
-        pubk=bytes(public_key).hex(),
-        quote=quote))
-    if resp.status_code != 200:
-        print(resp, file=sys.stderr)
-        raise Exception
-
-    encrypted_message = resp.content
+    encrypted_message = request.data
 
     # Decrypt the message using the private key
     unseal_box = SealedBox(private_key)
@@ -205,24 +208,32 @@ def onboard():
 ##############################
 
 # Called by other trusted modules to get a derived key
-@app.route('/getkey/<tag>', methods=['GET'])
+@app.route('/getkey/', methods=['GET'])
 def getkey(tag):
-    h = hashlib.blake2b(tag.encode('utf-8'), key=xPriv, digest_size=32)
+    ip_address = request.remote_addr
+
+    h = hashlib.blake2b(ip_address.encode('utf-8'), key=xPriv, digest_size=32)
     return h.hexdigest()
 
 # Called by other trusted modules to do EVM-friendly attestation
 @app.route('/appdata/<tag>/<appdata>', methods=['GET'])
 def get_appdata(tag, appdata):
+    ip_address = request.remote_addr
     appdata = keccak(tag.encode('utf-8') + bytes.fromhex(appdata))
     return appdata
 
 @app.route('/attest/<tag>/<appdata>', methods=['GET'])
 def attest(tag, appdata):
+    ip_address = request.remote_addr
     appdata = keccak(tag.encode('utf-8') + bytes.fromhex(appdata))
     h = keccak(b"attest" + appdata)
     sig = Account.from_key(xPriv).unsafe_sign_hash(h)
     sig = sig.v.to_bytes(1,'big') +  sig.r.to_bytes(32,'big') + sig.s.to_bytes(32,'big')
     return sig
+
+@app.route('/status', methods=['POST'])
+def status():
+    return global_state
 
 @app.errorhandler(404)
 def not_found(e):
