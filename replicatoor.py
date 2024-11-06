@@ -35,13 +35,14 @@ app = Flask(__name__)
 
 def get_dstack_quote(appdata):
     session = requests_unixsocket.Session()
-    return session.post('http+unix://%2Fvar%2Frun%2Ftappd.sock/prpc/Tappd.TdxQuote?json', data=appdata)
+    return session.post('http+unix://%2Fvar%2Frun%2Ftappd.sock/prpc/Tappd.TdxQuote?json', data=appdata).content.decode('utf-8')
 
 # To get a quote
 def get_quote(appdata):
     # Try to use the dstack tappd
     try:
         quote = get_dstack_quote(appdata)
+        print(quote)
         return quote
     except requests.exceptions.ConnectionError:
         # Fetch a dummy quote
@@ -50,10 +51,10 @@ def get_quote(appdata):
 
 def extend_report_data(tag, report_data):
     # Recompute the appdata we're expecting
-    s = tag.encode('utf-8') + b":" + bytes.fromhex(report_data)
+    s = tag.encode('utf-8') + b":" + report_data
     print('appdata preimage:', s)
     appdata = hashlib.sha256(s).hexdigest()
-    report_data[:32] == appdata
+    return appdata + "00"*32
     
 # Verifies the signatures of a quote and returns
 # it in a parsed form for further authorization checks
@@ -132,6 +133,20 @@ def configure():
     ETH_RPC_URL = ETH_RPC_BASE + config['ETH_API_KEY']
     return jsonify({"status": "success", "config": config}), 200
 
+# Return a summary of status
+@app.route('/status', methods=['GET'])
+def status():
+    ip_address = request.remote_addr
+    d = dict(caller_address=ip_address)
+    
+    global global_state
+    d.update(global_state)
+    
+    # Sanitize
+    if 'xPriv' in d: del d['xPriv']
+    if 'myPriv' in d: del d['myPriv']
+    return d
+
 # Create a fresh key
 @app.route('/bootstrap', methods=['POST'])
 def bootstrap():
@@ -146,7 +161,7 @@ def bootstrap():
     addr = Account.from_key(xPriv).address
 
     # Get the quote
-    appdata = hashlib.sha256(b"boostrap:" + addr.encode('utf-8')).hexdigest()
+    appdata = extend_report_data("bootstrap", addr.encode('utf-8'))
     quote = get_quote(appdata)
 
     # Print the parsed quote
@@ -168,44 +183,22 @@ def requestKey():
 
     # Generate a private key and a corresponding public key
     private_key = PrivateKey.generate()
-    public_key = private_key.public_key
-    print('public_key:', bytes(public_key).hex(), file=sys.stderr)
+    public_key = bytes(private_key.public_key).hex()
+    print('public_key:', public_key, file=sys.stderr)
 
     # Generate a private key and corresponding address
     myPriv = os.urandom(32)
 
     # Get the quote
-    s = b"register:" + bytes(public_key)
-    appdata = hashlib.sha256(b"register:" + bytes(public_key)).hexdigest()
+    appdata = extend_report_data("request", bytes.fromhex(public_key))
     quote = get_quote(appdata)
 
     # Store the quote for the host later
-    global_state['myPriv'] = bytes(private_key)
-    global_state['myPub']  = bytes(public_key)
+    global_state['myPriv'] = bytes(private_key).hex()
+    global_state['myPub']  = public_key
     global_state['onboard_quote'] = quote
 
-
-#####################
-# Receive the key
-#####################
-# Invoked by dev
-
-@app.route('/receiveKey', methods=['POST'])
-def receiveKey():
-    # Ask the host to get us onboarded
-    encrypted_message = request.data
-
-    # Decrypt the message using the private key
-    unseal_box = SealedBox(private_key)
-    decrypted_message = unseal_box.decrypt(encrypted_message)
-    xPriv = bytes(decrypted_message)
-
-
-
-#####################
-# Onboard
-#####################
-# Called by the host, to help someone else onboard
+    return jsonify(dict(quote=quote, pubk=public_key)), 200
 
 @app.route('/onboard', methods=['POST'])
 def onboard():
@@ -216,37 +209,50 @@ def onboard():
     obj = verify_quote(quote)
     FMSPC = obj['fmspc']
 
+    # Authorize the MRTD field
+    # TODO: 
+    # cast call get_mrtd()
+
     # Recompute the appdata we're expecting
-    ref_report_data = extend_report_data("request", pubk)
+    print('pubk', pubk)
+    ref_report_data = extend_report_data("request", bytes.fromhex(pubk))
     
     # Verify the quote in the blob against expected measurement
-    assert(obj['report_data'].startswith(ref_report_data))
+    if not obj['report_data'] == ref_report_data:
+        return f"Invalid report_data ref:{ref_report_data} val:{obj['report_data']}", 400
 
     # Encrypt the entire global state as a messsage
     global global_state
-    message = json.dumps(global_state)
+    message = json.dumps(global_state).encode('utf-8')
 
     # Encrypt a message using the public key
     p = PublicKey(bytes.fromhex(pubk))
     sealed_box = SealedBox(p)
-    encrypted_message = bytes(sealed_box.encrypt(xPriv)).hex()
+    encrypted_message = bytes(sealed_box.encrypt(message)).hex()
+    return encrypted_message, 200
 
-    return encrypted_message.hex(), 200
 
+@app.route('/receiveKey', methods=['POST'])
+def receiveKey():
+    # Ask the host to get us onboarded
+    encrypted_message = bytes.fromhex(request.data.decode('utf-8'))
 
-# Return a summary of status
-@app.route('/status', methods=['GET'])
-def status():
-    ip_address = request.remote_addr
-    d = dict(caller_address=ip_address)
-    
-    global global_state
-    d.update(global_state)
-    
-    # Sanitize
-    if 'xPriv' in d: del d['xPriv']
-    if 'myPriv' in d: del d['myPriv']
-    return d
+    # Decrypt the message using the private key
+    private_key = bytes.fromhex(global_state['myPriv'])
+    unseal_box = SealedBox(PrivateKey(private_key))
+    decrypted_message = unseal_box.decrypt(encrypted_message)
+    obj = json.loads(decrypted_message)
+
+    # Copy everything?
+    global_state.update(obj)
+
+    # Store in state
+    if 0:
+        addr = Account.from_key(xPriv).address
+        global_state['addr'] = addr
+        global_state['xPriv'] = xPriv.hex()
+        
+    return "Loaded encrypted state", 200
 
 
 ##############################

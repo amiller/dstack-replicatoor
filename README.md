@@ -20,14 +20,30 @@ A time limit is imposed, upgrades are pending for a minimum of 48 hours.
 Interact with the Replicatoor from untrusted host
 ========
 You can send GET/POST to the IP running this service:
-- POST /configure/
-  ```
-  curl -X POST -H "Content-Type: text/plain" -d @private.env http://172.20.0.2:4001/configure
-  ```
-- POST /bootstrap/  {addr}
-- GET  /onboard/ {addr}   Fetches [pubk] and [quote] from L2.
+- GET  /status/ gives an indication how it's going, can be used to retrieve quotes and public parameters
+```bash
+curl http://$GUEST/status
+```
+
+- POST /configure/  used to provide API keys
+```bash
+curl -X POST -H "Content-Type: text/plain" -d @private.env http://172.20.0.2:4001/configure
+```
+
+- POST /bootstrap/  used to initialize `xPriv`
+```
+curl -X POST http://$GUEST/bootstrap
+```
+
 - POST /request/  {}
-- GET  /status/ gives an indication how it's going
+```
+curl -X POST -d "pubk=your_public_key_here" -d "quote=your_quote_here" http://$GUEST/onboard
+```
+
+- GET  /onboard/ {addr}   Fetches [pubk] and [quote] from L2.
+```
+curl -X POST -d "pubk=your_public_key_here" -d "quote=your_quote_here" http://localhost:5000/onboard
+```
 
 Getting the reference value for the rtmr3
 =======
