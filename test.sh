@@ -9,10 +9,8 @@ GUEST=172.20.0.2:4001
 curl -X POST -H "Content-Type: text/plain" --data-binary @private.env http://$GUEST/configure
 curl http://$GUEST/status
 
-# Bootstrap
-curl -X POST http://$GUEST/bootstrap
-curl -X POST http://$GUEST/bootstrap # fails second time
-curl http://$GUEST/status
+# Write some secrets
+sudo cp private.env /tmp/tapp-ramdisk/private.env
 
 # Request the key
 curl -s -X POST http://$GUEST/requestKey > request.out

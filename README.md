@@ -32,11 +32,6 @@ curl http://$GUEST/status
 curl -X POST -H "Content-Type: text/plain" -d @private.env http://172.20.0.2:4001/configure
 ```
 
-- POST /bootstrap/  used to initialize `xPriv`
-```
-curl -X POST http://$GUEST/bootstrap
-```
-
 - POST /requestKey/  used to request a key 
 ```
 curl -s -X POST http://$GUEST/requestKey > request.out

@@ -21,6 +21,7 @@ ETH_RPC_URL     = None
 ETH_RPC_BASE = os.environ['ETH_RPC_URL']
 CONTRACT    = os.environ['CONTRACT']
 CHAIN_ID    = os.environ['CHAIN_ID']
+SECURE_FILE = os.environ['SECURE_FILE']
 
 # Here's all the key state
 global_state = dict(
@@ -35,9 +36,9 @@ app = Flask(__name__)
 
 def get_dstack_quote(appdata):
     session = requests_unixsocket.Session()
-    content = session.post('http+unix://%2Fvar%2Frun%2Ftappd.sock/prpc/Tappd.TdxQuote?json', data=appdata).content
-    print('content:', content, file=sys.stderr)
-    quote = json.loads(content)['quote']
+    content = session.post('http+unix://%2Fvar%2Frun%2Ftappd.sock/prpc/Tappd.TdxQuote?json',
+                           data=json.dumps(dict(report_data=appdata))).content
+    quote = json.loads(content)['quote'][2:] # skip 0x
     return quote
 
 # To get a quote
@@ -150,36 +151,6 @@ def status():
     if 'myPriv' in d: del d['myPriv']
     return d
 
-# Create a fresh key
-@app.route('/bootstrap', methods=['POST'])
-def bootstrap():
-    global global_state
-    if global_state['xPriv']:
-        print('Already have xPriv, not replacing', file=sys.stderr)
-        return 'Already have xPriv, not replacing', 300
-    print('Generating a fresh key', file=sys.stderr)
-
-    # Generate the random key
-    xPriv = os.urandom(32)
-    addr = Account.from_key(xPriv).address
-
-    # Get the quote
-    appdata = extend_report_data("bootstrap", addr.encode('utf-8'))
-    quote = get_quote(appdata)
-    print('quote:', quote, file=sys.stderr)
-
-    # Print the parsed quote
-    obj = verify_quote(quote)
-    print(obj, file=sys.stderr)
-
-    # Store the quote for the host later (redundant)
-    global_state['addr'] = addr
-    global_state['xPriv'] = xPriv.hex()
-    global_state['bootstrap_quote'] = quote
-    
-    # Ask the host service to post the tx, return when done
-    return dict(addr=addr, quote=quote)
-
 # Request a copy of existing key
 @app.route('/requestKey', methods=['POST'])
 def requestKey():
@@ -226,8 +197,7 @@ def onboard():
         return f"Invalid report_data ref:{ref_report_data} val:{obj['report_data']}", 400
 
     # Encrypt the entire global state as a messsage
-    global global_state
-    message = json.dumps(global_state).encode('utf-8')
+    message = open(SECURE_FILE,'rb').read()
 
     # Encrypt a message using the public key
     p = PublicKey(bytes.fromhex(pubk))
@@ -245,48 +215,12 @@ def receiveKey():
     private_key = bytes.fromhex(global_state['myPriv'])
     unseal_box = SealedBox(PrivateKey(private_key))
     decrypted_message = unseal_box.decrypt(encrypted_message)
-    obj = json.loads(decrypted_message)
 
-    # Copy everything?
-    global_state.update(obj)
-
-    # Store in state
-    if 0:
-        addr = Account.from_key(xPriv).address
-        global_state['addr'] = addr
-        global_state['xPriv'] = xPriv.hex()
+    # Write to the file
+    with open(SECURE_FILE,'wb') as f:
+        f.write(decrypted_message)
         
     return "Loaded encrypted state", 200
-
-
-##############################
-# Dstack cooperative interface
-##############################
-
-# Called by other trusted modules to get a derived key
-@app.route('/getkey/', methods=['GET'])
-def getkey(tag):
-    ip_address = request.remote_addr
-
-    h = hashlib.blake2b(ip_address.encode('utf-8'), key=xPriv, digest_size=32)
-    return h.hexdigest()
-
-# Called by other trusted modules to do EVM-friendly attestation
-@app.route('/appdata/<tag>/<appdata>', methods=['GET'])
-def get_appdata(tag, appdata):
-    ip_address = request.remote_addr
-    appdata = keccak(tag.encode('utf-8') + bytes.fromhex(appdata))
-    return appdata
-
-# Remote attestations (using signature from address)
-@app.route('/attest/<tag>/<appdata>', methods=['GET'])
-def attest(tag, appdata):
-    ip_address = request.remote_addr
-    appdata = keccak(tag.encode('utf-8') + bytes.fromhex(appdata))
-    h = keccak(b"attest" + appdata)
-    sig = Account.from_key(xPriv).unsafe_sign_hash(h)
-    sig = sig.v.to_bytes(1,'big') +  sig.r.to_bytes(32,'big') + sig.s.to_bytes(32,'big')
-    return sig
 
 @app.errorhandler(404)
 def not_found(e):
