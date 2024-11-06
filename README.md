@@ -19,6 +19,8 @@ A time limit is imposed, upgrades are pending for a minimum of 48 hours.
 
 Interact with the Replicatoor from untrusted host
 ========
+See `test.sh` for an example.
+
 You can send GET/POST to the IP running this service:
 - GET  /status/ gives an indication how it's going, can be used to retrieve quotes and public parameters
 ```bash
@@ -35,14 +37,22 @@ curl -X POST -H "Content-Type: text/plain" -d @private.env http://172.20.0.2:400
 curl -X POST http://$GUEST/bootstrap
 ```
 
-- POST /request/  {}
+- POST /requestKey/  used to request a key 
 ```
-curl -X POST -d "pubk=your_public_key_here" -d "quote=your_quote_here" http://$GUEST/onboard
+curl -s -X POST http://$GUEST/requestKey > request.out
+PUBK=$(cat request.out | jq -r .pubk)
+QUOTE=$(cat request.out | jq -r .quote)
+```
+Returns a json containg $PUBK and $QUOTE
+
+- POST /onboard/ {pubk} {quote} produces an encrypted state file
+```
+curl -s -X POST -d "pubk=$PUBK" -d "quote=$QUOTE"  http://$GUEST/onboard > onboard.out
 ```
 
-- GET  /onboard/ {addr}   Fetches [pubk] and [quote] from L2.
-```
-curl -X POST -d "pubk=your_public_key_here" -d "quote=your_quote_here" http://localhost:5000/onboard
+- POST /receiveKey  {encrypted_message}
+```bash
+curl -X POST -H "Content-Type: text/plain" --data-binary @onboard.out http://$GUEST/receiveKey
 ```
 
 Getting the reference value for the rtmr3

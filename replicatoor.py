@@ -35,14 +35,17 @@ app = Flask(__name__)
 
 def get_dstack_quote(appdata):
     session = requests_unixsocket.Session()
-    return session.post('http+unix://%2Fvar%2Frun%2Ftappd.sock/prpc/Tappd.TdxQuote?json', data=appdata).content.decode('utf-8')
+    content = session.post('http+unix://%2Fvar%2Frun%2Ftappd.sock/prpc/Tappd.TdxQuote?json', data=appdata).content
+    print('content:', content, file=sys.stderr)
+    quote = json.loads(content)['quote']
+    return quote
 
 # To get a quote
 def get_quote(appdata):
     # Try to use the dstack tappd
     try:
         quote = get_dstack_quote(appdata)
-        print(quote)
+        print(quote, file=sys.stderr)
         return quote
     except requests.exceptions.ConnectionError:
         # Fetch a dummy quote
@@ -52,7 +55,7 @@ def get_quote(appdata):
 def extend_report_data(tag, report_data):
     # Recompute the appdata we're expecting
     s = tag.encode('utf-8') + b":" + report_data
-    print('appdata preimage:', s)
+    print('appdata preimage:', s, file=sys.stderr)
     appdata = hashlib.sha256(s).hexdigest()
     return appdata + "00"*32
     
@@ -126,7 +129,7 @@ def configure():
         if '=' in line:
             key, value = line.split('=', 1)
             config[key.strip()] = value.strip()
-    print('Received configuration parameters:', config)
+    print('Received configuration parameters:', config, file=sys.stderr)
     global ETH_API_KEY
     global ETH_RPC_URL
     ETH_API_KEY = config['ETH_API_KEY']
@@ -152,7 +155,7 @@ def status():
 def bootstrap():
     global global_state
     if global_state['xPriv']:
-        print('Already have xPriv, not replacing')
+        print('Already have xPriv, not replacing', file=sys.stderr)
         return 'Already have xPriv, not replacing', 300
     print('Generating a fresh key', file=sys.stderr)
 
@@ -163,10 +166,11 @@ def bootstrap():
     # Get the quote
     appdata = extend_report_data("bootstrap", addr.encode('utf-8'))
     quote = get_quote(appdata)
+    print('quote:', quote, file=sys.stderr)
 
     # Print the parsed quote
     obj = verify_quote(quote)
-    print(obj)
+    print(obj, file=sys.stderr)
 
     # Store the quote for the host later (redundant)
     global_state['addr'] = addr
@@ -214,7 +218,7 @@ def onboard():
     # cast call get_mrtd()
 
     # Recompute the appdata we're expecting
-    print('pubk', pubk)
+    print('pubk', pubk, file=sys.stderr)
     ref_report_data = extend_report_data("request", bytes.fromhex(pubk))
     
     # Verify the quote in the blob against expected measurement

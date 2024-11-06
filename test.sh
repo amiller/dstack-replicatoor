@@ -6,7 +6,7 @@ set -e
 GUEST=172.20.0.2:4001
 
 # Configure the API keys
-curl -X POST -H "Content-Type: text/plain" --data-binary @private.env http://172.20.0.2:4001/configure
+curl -X POST -H "Content-Type: text/plain" --data-binary @private.env http://$GUEST/configure
 curl http://$GUEST/status
 
 # Bootstrap
