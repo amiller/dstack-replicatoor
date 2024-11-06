@@ -20,8 +20,12 @@ A time limit is imposed, upgrades are pending for a minimum of 48 hours.
 Interact with the Replicatoor from untrusted host
 ========
 You can send GET/POST to the IP running this service:
-- GET  /onboard/ {addr}   Fetches [pubk] and [quote] from L2.
+- POST /configure/
+  ```
+  curl -X POST -H "Content-Type: text/plain" -d @private.env http://172.20.0.2:4001/configure
+  ```
 - POST /bootstrap/  {addr}
+- GET  /onboard/ {addr}   Fetches [pubk] and [quote] from L2.
 - POST /request/  {}
 - GET  /status/ gives an indication how it's going
 

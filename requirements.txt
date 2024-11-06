@@ -1,0 +1,8 @@
+flask
+web3
+pynacl
+urllib3
+
+# See https://github.com/google-deepmind/alphafold/issues/853
+requests == 2.28.1 
+requests-unixsocket >= 0.3.0
