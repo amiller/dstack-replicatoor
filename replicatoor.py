@@ -14,11 +14,10 @@ import base64
 import re
 
 # Untrusted environment values
-ETH_API_KEY     = None
 ETH_RPC_URL     = None
 
 # Trusted values read from image
-ETH_RPC_BASE = os.environ['ETH_RPC_URL']
+ETH_RPC_PREFIX = os.environ['ETH_RPC_PREFIX']
 CONTRACT    = os.environ['CONTRACT']
 CHAIN_ID    = os.environ['CHAIN_ID']
 SECURE_FILE = os.environ['SECURE_FILE']
@@ -50,6 +49,7 @@ def get_quote(appdata):
         return quote
     except requests.exceptions.ConnectionError:
         # Fetch a dummy quote
+        appdata = hashlib.sha512(bytes.fromhex(appdata)).hexdigest()
         cmd = f"curl -sk http://ns31695324.ip-141-94-163.eu:10080/attest/{appdata} --output - | od -An -v -tx1 | tr -d ' \n'"
         return subprocess.check_output(cmd, shell=True).decode('utf-8')
 
@@ -131,10 +131,9 @@ def configure():
             key, value = line.split('=', 1)
             config[key.strip()] = value.strip()
     print('Received configuration parameters:', config, file=sys.stderr)
-    global ETH_API_KEY
     global ETH_RPC_URL
-    ETH_API_KEY = config['ETH_API_KEY']
-    ETH_RPC_URL = ETH_RPC_BASE + config['ETH_API_KEY']
+    ETH_RPC_URL = config['ETH_RPC_URL']
+    assert ETH_RPC_URL.startswith(ETH_RPC_PREFIX)
     return jsonify({"status": "success", "config": config}), 200
 
 # Return a summary of status
@@ -191,7 +190,8 @@ def onboard():
     # Recompute the appdata we're expecting
     print('pubk', pubk, file=sys.stderr)
     ref_report_data = extend_report_data("request", bytes.fromhex(pubk))
-    
+    ref_report_data = hashlib.sha512(bytes.fromhex(ref_report_data)).hexdigest()
+
     # Verify the quote in the blob against expected measurement
     if not obj['report_data'] == ref_report_data:
         return f"Invalid report_data ref:{ref_report_data} val:{obj['report_data']}", 400

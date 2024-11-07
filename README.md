@@ -20,6 +20,7 @@ A time limit is imposed, upgrades are pending for a minimum of 48 hours.
 Interact with the Replicatoor from untrusted host
 ========
 See `test.sh` for an example.
+You will need to change the IP address to match the one
 
 You can send GET/POST to the IP running this service:
 - GET  /status/ gives an indication how it's going, can be used to retrieve quotes and public parameters

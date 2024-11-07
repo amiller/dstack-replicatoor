@@ -3,10 +3,11 @@ set -x
 set -e
 
 # Configure to the IP address of the container
-GUEST=172.20.0.2:4001
+GUEST=172.25.0.2:4001
+GUEST_tO=localhost:4001
 
 # Configure the API keys
-curl -X POST -H "Content-Type: text/plain" --data-binary @private.env http://$GUEST/configure
+curl -X POST -H "Content-Type: text/plain" --data-binary @host.env http://$GUEST/configure
 curl http://$GUEST/status
 
 # Write some secrets
