@@ -21,27 +21,31 @@ contract UpgradeOperator {
     // Reference RTMR values
     mapping ( bytes32 => bool ) public rtmrs;
 
-    event SetMRTD(bytes mrtd, bytes rtmr0, bytes rtmr3, bool status);
-    function set_mrtd(bytes memory mrtd,
+    event SetMRTD(bytes rootfs_hash, bytes mrtd, bytes rtmr0, bytes rtmr3, bool status);
+    function set_mrtd(bytes memory rootfs_hash,
+		      bytes memory mrtd,
 		      bytes memory rtmr0,
 		      bytes memory rtmr3,
 		      bool status) public
     {
-	require(msg.sender == owner);	
+	require(msg.sender == owner);
+	require(rootfs_hash.length == 32);
 	require(mrtd.length == 48);
 	require(rtmr0.length == 48);
 	require(rtmr3.length == 48);
-	rtmrs[keccak256(abi.encodePacked(mrtd,rtmr0,rtmr3))] = status;
-	emit SetMRTD(mrtd, rtmr0, rtmr3, status);
+	rtmrs[keccak256(abi.encodePacked(rootfs_hash,mrtd,rtmr0,rtmr3))] = status;
+	emit SetMRTD(rootfs_hash, mrtd, rtmr0, rtmr3, status);
     }
     
-    function get_mrtd(bytes memory mrtd,
+    function get_mrtd(bytes memory rootfs_hash,
+		      bytes memory mrtd,
 		      bytes memory rtmr0,
 		      bytes memory rtmr3) public view returns(bool)
     {
+	require(rootfs_hash.length == 32);
 	require(mrtd.length == 48);
 	require(rtmr0.length == 48);
 	require(rtmr3.length == 48);
-	return rtmrs[keccak256(abi.encodePacked(mrtd,rtmr0,rtmr3))];
+	return rtmrs[keccak256(abi.encodePacked(rootfs_hash,mrtd,rtmr0,rtmr3))];
     }
 }

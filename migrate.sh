@@ -1,3 +1,4 @@
+set -e
 set -x
 
 REPL_FROM=172.25.0.2:4001

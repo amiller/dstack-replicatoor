@@ -111,9 +111,9 @@ def is_bootstrapped():
     return out.strip() != "0x"+"0"*64
 
 def check_mrtd(mrtd, rtmr0, rtmr3):
-    cmd = f"cast call {CONTRACT} 'get_mrtd(bytes,bytes,bytes)(bool)' {mrtd0} {rtmr0} {rtmr3}"
+    cmd = f"cast call {CONTRACT} 'get_mrtd(bytes,bytes,bytes)(bool)' 0x{mrtd} 0x{rtmr0} 0x{rtmr3}"
     out = subprocess.check_output(cmd, shell=True).decode('utf-8')
-    return out.strip() != "0x"+"0"*64
+    return out.strip()
 
 #####################
 # Host interface 
@@ -132,7 +132,7 @@ def configure():
             config[key.strip()] = value.strip()
     print('Received configuration parameters:', config, file=sys.stderr)
     global ETH_RPC_URL
-    ETH_RPC_URL = config['ETH_RPC_URL']
+    os.environ['ETH_RPC_URL'] = ETH_RPC_URL = config['ETH_RPC_URL']
     assert ETH_RPC_URL.startswith(ETH_RPC_PREFIX)
     return jsonify({"status": "success", "config": config}), 200
 
@@ -184,8 +184,14 @@ def onboard():
     FMSPC = obj['fmspc']
 
     # Authorize the MRTD field
-    # TODO: 
-    # cast call get_mrtd()
+    mrtd = obj['mrtd']
+    rtmr0 = obj['rtmr0']
+    rtmr3 = obj['rtmr3']
+    # TODO: anything else to check?
+    res = check_mrtd(mrtd, rtmr0, rtmr3)
+    if not res == "true":
+        print('mrtd failed:', mrtd, rtmr0, rtmr3, file=sys.stderr)
+        return "rtmrs check failed", 401
 
     # Recompute the appdata we're expecting
     print('pubk', pubk, file=sys.stderr)
