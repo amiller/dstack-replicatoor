@@ -18,6 +18,12 @@ contract UpgradeOperator {
 	owner = msg.sender;
     }
 
+    uint256 public nextUpdateAllowed;
+
+    function _resetTimer() internal {
+        nextUpdateAllowed = block.timestamp + 3 days;
+    }
+
     // Reference RTMR values
     mapping ( bytes32 => bool ) public rtmrs;
 
@@ -27,7 +33,13 @@ contract UpgradeOperator {
 		      bytes memory rtmr0,
 		      bytes memory rtmr3,
 		      bool status) public
-    {
+{
+        // Allowing a new enclave 
+        if (status) {
+	    require(block.timestamp >= nextUpdateAllowed,
+		    "Update not allowed yet.");
+	    _resetTimer();
+	}
 	require(msg.sender == owner);
 	require(rootfs_hash.length == 32);
 	require(mrtd.length == 48);

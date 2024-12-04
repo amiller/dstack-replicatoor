@@ -33,6 +33,14 @@ contract UpgradeOperatorTest is Test {
 	uop.set_mrtd(rootfs_hash, mrtd, rtmr0, rtmr3, true);
 
 	assertTrue(uop.get_mrtd(rootfs_hash, mrtd, rtmr0, rtmr3));
+
+	// Test upgrade timer
+        vm.prank(vm.addr(uint(keccak256("UpgradeOperator.t.sol"))));
+	vm.expectRevert();
+	uop.set_mrtd(rootfs_hash, mrtd, rtmr0, rtmr3, true);
+	vm.warp(8 days);
+        vm.prank(vm.addr(uint(keccak256("UpgradeOperator.t.sol"))));
+	uop.set_mrtd(rootfs_hash, mrtd, rtmr0, rtmr3, true);
     }
     
 }
