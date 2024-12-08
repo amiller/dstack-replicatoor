@@ -18,17 +18,16 @@ from urllib.parse import urlparse
 ETH_RPC_URL = None
 
 # Trusted values read from image
-ETH_RPC_BASE = os.environ['ETH_RPC_BASE']
+HELIOS_PARAM = os.environ['HELIOS_PARAM']  # e.g., opstack --network base
 CONTRACT    = os.environ['CONTRACT']
-CHAIN_ID    = os.environ['CHAIN_ID']
 SECURE_FILE = os.environ['SECURE_FILE']
 
-# Helios proc
+# Helios light client running as a subprocess
 helios_proc = None
 def run_lightclient():
     global helios_proc
     assert helios_proc is None
-    helios_proc = subprocess.Popen(f"/root/helios opstack --network base --execution-rpc {ETH_RPC_URL}", stdin=None, stderr=subprocess.PIPE, stdout=subprocess.PIPE, shell=True, text=True)
+    helios_proc = subprocess.Popen(f"/root/helios {HELIOS_PARAM} --execution-rpc {ETH_RPC_URL}", stdin=None, stderr=subprocess.PIPE, stdout=subprocess.PIPE, shell=True, text=True)
 
 # Here's all the key state
 global_state = dict(
@@ -141,7 +140,6 @@ def configure():
     print('Received configuration parameters:', config, file=sys.stderr)
     global ETH_RPC_URL
     os.environ['ETH_RPC_URL'] = ETH_RPC_URL = config['ETH_RPC_URL']
-    assert urlparse(ETH_RPC_URL).netloc.endswith(ETH_RPC_BASE)
     run_lightclient()
     return jsonify({"status": "success", "config": config}), 200
 

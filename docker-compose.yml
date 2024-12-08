@@ -8,8 +8,7 @@ services:
     environment:
       - SECURE_FILE=/tmp/tapp-ramdisk/private.env
       - CONTRACT=0x2c5032c6b1ec3d13acc81758d83e0b4478e153ff
-      - ETH_RPC_BASE=base-mainnet.quiknode.pro
-      - CHAIN_ID=8453
+      - HELIOS_PARAM=opstack --network base
     networks:
       my_network:
         ipv4_address: 172.16.238.10
